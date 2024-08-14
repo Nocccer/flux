@@ -300,7 +300,7 @@ type integral struct {
 	lastVS float64
 
 	bounds [2]execute.Time
-	points uint8
+	points uint64
 
 	unit float64
 	sum  float64
