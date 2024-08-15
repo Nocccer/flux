@@ -3662,7 +3662,7 @@ builtin logarithmicBins : (start: float, factor: float, count: int, ?infinity: b
 // introduced: 0.83.0
 // tags: transformations, aggregates
 //
-timeWeightedAvg = (tables=<-, unit, ignoreUnsupported) =>
+timeWeightedAvg = (tables=<-, unit, ignoreUnsupported=false) =>
     tables
         |> integral(unit: unit, interpolate: "linear", ignoreUnsupported: ignoreUnsupported)
         |> map(
