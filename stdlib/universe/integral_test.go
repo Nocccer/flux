@@ -338,6 +338,18 @@ func TestIntegral_Process(t *testing.T) {
 			wantErr: fmt.Errorf("cannot perform integral over string"),
 		},
 		{
+			name: "integral over string with ignore unsupported types",
+			spec: &universe.IntegralProcedureSpec{
+				Unit:              flux.ConvertDuration(1),
+				TimeColumn:        execute.DefaultTimeColLabel,
+				IngoreUnsupported: true,
+				SimpleAggregateConfig: execute.SimpleAggregateConfig{
+					Columns: []string{"t"},
+				},
+			},
+			data: nil,
+		},
+		{
 			name: "float repeated times",
 			spec: &universe.IntegralProcedureSpec{
 				Unit:                  flux.ConvertDuration(1),

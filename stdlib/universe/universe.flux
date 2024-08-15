@@ -1104,6 +1104,7 @@ builtin integral : (
         ?timeColumn: string,
         ?column: string,
         ?interpolate: string,
+        ?ignoreUnsupported: bool,
     ) => stream[B]
     where
     A: Record,
@@ -3661,9 +3662,9 @@ builtin logarithmicBins : (start: float, factor: float, count: int, ?infinity: b
 // introduced: 0.83.0
 // tags: transformations, aggregates
 //
-timeWeightedAvg = (tables=<-, unit) =>
+timeWeightedAvg = (tables=<-, unit, ignoreUnsupported) =>
     tables
-        |> integral(unit: unit, interpolate: "linear")
+        |> integral(unit: unit, interpolate: "linear", ignoreUnsupported: ignoreUnsupported)
         |> map(
             fn: (r) =>
                 ({r with _value:

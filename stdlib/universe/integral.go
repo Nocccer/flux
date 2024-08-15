@@ -15,9 +15,10 @@ import (
 const IntegralKind = "integral"
 
 type IntegralOpSpec struct {
-	Unit        flux.Duration `json:"unit"`
-	TimeColumn  string        `json:"timeColumn"`
-	Interpolate string        `json:"interpolate"`
+	Unit              flux.Duration `json:"unit"`
+	TimeColumn        string        `json:"timeColumn"`
+	Interpolate       string        `json:"interpolate"`
+	IngoreUnsupported bool          `json:"ignoreUnsupported"`
 	execute.SimpleAggregateConfig
 }
 
@@ -61,6 +62,14 @@ func CreateIntegralOpSpec(args flux.Arguments, a *flux.Administration) (flux.Ope
 		spec.Interpolate = ""
 	}
 
+	if ignoreUnsupported, ok, err := args.GetBool("ignoreUnsupported"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.IngoreUnsupported = ignoreUnsupported
+	} else {
+		spec.IngoreUnsupported = false
+	}
+
 	if err := spec.SimpleAggregateConfig.ReadArgs(args); err != nil {
 		return nil, err
 	}
@@ -72,9 +81,10 @@ func (s *IntegralOpSpec) Kind() flux.OperationKind {
 }
 
 type IntegralProcedureSpec struct {
-	Unit        flux.Duration `json:"unit"`
-	TimeColumn  string        `json:"timeColumn"`
-	Interpolate bool          `json:"interpolate"`
+	Unit              flux.Duration `json:"unit"`
+	TimeColumn        string        `json:"timeColumn"`
+	Interpolate       bool          `json:"interpolate"`
+	IngoreUnsupported bool          `json:"ignoreUnsupported"`
 	execute.SimpleAggregateConfig
 }
 
@@ -88,6 +98,7 @@ func newIntegralProcedure(qs flux.OperationSpec, pa plan.Administration) (plan.P
 		Unit:                  spec.Unit,
 		TimeColumn:            spec.TimeColumn,
 		Interpolate:           spec.Interpolate == "linear",
+		IngoreUnsupported:     spec.IngoreUnsupported,
 		SimpleAggregateConfig: spec.SimpleAggregateConfig,
 	}, nil
 }
@@ -187,6 +198,9 @@ func (t *integralTransformation) Process(id execute.DatasetID, tbl flux.Table) e
 		if typ := cols[idx].Type; typ != flux.TFloat &&
 			typ != flux.TInt &&
 			typ != flux.TUInt {
+			if t.spec.IngoreUnsupported {
+				continue
+			}
 			return errors.Newf(codes.FailedPrecondition, "cannot perform integral over %v", typ)
 		}
 
