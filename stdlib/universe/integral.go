@@ -15,9 +15,10 @@ import (
 const IntegralKind = "integral"
 
 type IntegralOpSpec struct {
-	Unit        flux.Duration `json:"unit"`
-	TimeColumn  string        `json:"timeColumn"`
-	Interpolate string        `json:"interpolate"`
+	Unit              flux.Duration `json:"unit"`
+	TimeColumn        string        `json:"timeColumn"`
+	Interpolate       string        `json:"interpolate"`
+	IngoreUnsupported bool          `json:"ignoreUnsupported"`
 	execute.SimpleAggregateConfig
 }
 
@@ -61,6 +62,14 @@ func CreateIntegralOpSpec(args flux.Arguments, a *flux.Administration) (flux.Ope
 		spec.Interpolate = ""
 	}
 
+	if ignoreUnsupported, ok, err := args.GetBool("ignoreUnsupported"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.IngoreUnsupported = ignoreUnsupported
+	} else {
+		spec.IngoreUnsupported = false
+	}
+
 	if err := spec.SimpleAggregateConfig.ReadArgs(args); err != nil {
 		return nil, err
 	}
@@ -72,9 +81,10 @@ func (s *IntegralOpSpec) Kind() flux.OperationKind {
 }
 
 type IntegralProcedureSpec struct {
-	Unit        flux.Duration `json:"unit"`
-	TimeColumn  string        `json:"timeColumn"`
-	Interpolate bool          `json:"interpolate"`
+	Unit              flux.Duration `json:"unit"`
+	TimeColumn        string        `json:"timeColumn"`
+	Interpolate       bool          `json:"interpolate"`
+	IngoreUnsupported bool          `json:"ignoreUnsupported"`
 	execute.SimpleAggregateConfig
 }
 
@@ -88,6 +98,7 @@ func newIntegralProcedure(qs flux.OperationSpec, pa plan.Administration) (plan.P
 		Unit:                  spec.Unit,
 		TimeColumn:            spec.TimeColumn,
 		Interpolate:           spec.Interpolate == "linear",
+		IngoreUnsupported:     spec.IngoreUnsupported,
 		SimpleAggregateConfig: spec.SimpleAggregateConfig,
 	}, nil
 }
@@ -187,6 +198,9 @@ func (t *integralTransformation) Process(id execute.DatasetID, tbl flux.Table) e
 		if typ := cols[idx].Type; typ != flux.TFloat &&
 			typ != flux.TInt &&
 			typ != flux.TUInt {
+			if t.spec.IngoreUnsupported {
+				continue
+			}
 			return errors.Newf(codes.FailedPrecondition, "cannot perform integral over %v", typ)
 		}
 
@@ -255,13 +269,12 @@ func (t *integralTransformation) Process(id execute.DatasetID, tbl flux.Table) e
 		if in == nil {
 			continue
 		}
-		switch in.points {
-		case 0:
+		if in.first {
 			// We had no data therefore the area under the curve is zero.
 			if err := builder.AppendFloat(colMap[j], 0.0); err != nil {
 				return err
 			}
-		default:
+		} else {
 			// Stretch the last point to the end (bound[1]) and add it to the sum
 			in.sum += in.lastVS * float64(in.bounds[1]-in.lastTS) / in.unit
 			if err := builder.AppendFloat(colMap[j], in.value()); err != nil {
@@ -290,6 +303,7 @@ func newIntegral(unit time.Duration, start, stop execute.Time, interpolate bool)
 		interpolate: interpolate,
 		bounds:      [2]execute.Time{start, stop},
 		unit:        float64(unit),
+		first:       true,
 	}
 }
 
@@ -300,7 +314,7 @@ type integral struct {
 	lastVS float64
 
 	bounds [2]execute.Time
-	points uint8
+	first  bool
 
 	unit float64
 	sum  float64
@@ -311,19 +325,17 @@ func (in *integral) value() float64 {
 }
 
 func (in *integral) updateFloat(t execute.Time, v float64) {
-	switch in.points {
-	case 0:
+	if in.first {
 		// stretch first point to the start (bound[0])
 		in.sum += v * float64(t-in.bounds[0]) / in.unit
 		in.lastTS, in.lastVS = t, v
-		in.points++
-	default:
+		in.first = false
+	} else {
 		if in.interpolate {
 			in.sum += 0.5 * (v + in.lastVS) * float64(t-in.lastTS) / in.unit
 		} else {
 			in.sum += in.lastVS * float64(t-in.lastTS) / in.unit
 		}
 		in.lastTS, in.lastVS = t, v
-		in.points++
 	}
 }
