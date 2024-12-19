@@ -54,7 +54,7 @@ func (a *ArrayContainer) OrigValue(i int) interface{} {
 	case *array.Float:
 		return a.array.(*array.Float).Value(i)
 	case *array.String:
-		return string(a.array.(*array.String).Value(i))
+		return a.array.(*array.String).Value(i)
 	default:
 		return nil
 	}
